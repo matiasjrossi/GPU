@@ -1,20 +1,16 @@
 
-kernel void Negate(global float* image, const unsigned long xMax, const unsigned long yMax, const unsigned long zMax)
+kernel void Negate(global float* image, const unsigned long numElements)
 {
-    unsigned long index = (get_global_id(0) + get_global_id(1) * xMax) * zMax + get_global_id(2);
-    if (get_global_id(0) >= xMax) return;
-    if (get_global_id(1) >= yMax) return;
-    if (get_global_id(2) >= zMax) return;
+    unsigned long index = get_global_id(0);
+    if (index >= numElements) return;
 
     image[index] = 255.0 - image[index];
 }
 
-kernel void Brightness(global float* image, const unsigned long xMax, const unsigned long yMax, const unsigned long zMax, const float brightness)
+kernel void Brightness(global float* image, const unsigned long numElements, const float brightness)
 {
-    unsigned long index = (get_global_id(0) + get_global_id(1) * xMax) * zMax + get_global_id(2);
-    if (get_global_id(0) >= xMax) return;
-    if (get_global_id(1) >= yMax) return;
-    if (get_global_id(2) >= zMax) return;
+    unsigned long index = get_global_id(0);
+    if (index >= numElements) return;
     
     image[index] = brightness + image[index];
     if (image[index] > 255.0)
@@ -23,12 +19,10 @@ kernel void Brightness(global float* image, const unsigned long xMax, const unsi
         image[index] = 0.0;
 }
 
-kernel void Threshold(global float* image, const unsigned long xMax, const unsigned long yMax, const unsigned long zMax, const float threshold)
+kernel void Threshold(global float* image, const unsigned long numElements, const float threshold)
 {
-    unsigned long index = (get_global_id(0) + get_global_id(1) * xMax) * zMax + get_global_id(2);
-    if (get_global_id(0) >= xMax) return;
-    if (get_global_id(1) >= yMax) return;
-    if (get_global_id(2) >= zMax) return;
+    unsigned long index = get_global_id(0);
+    if (index >= numElements) return;
 
     if (image[index] < threshold)
         image[index] = 0.0;
@@ -36,13 +30,11 @@ kernel void Threshold(global float* image, const unsigned long xMax, const unsig
         image[index] = 255.0;
 }
 
-kernel void Contrast(global float* image, const unsigned long xMax, const unsigned long yMax, const unsigned long zMax, const float minI, const float maxI)
+kernel void Contrast(global float* image, const unsigned long numElements, const float minI, const float maxI)
 {
-    unsigned long index = (get_global_id(0) + get_global_id(1) * xMax) * zMax + get_global_id(2);
-    if (get_global_id(0) >= xMax) return;
-    if (get_global_id(1) >= yMax) return;
-    if (get_global_id(2) >= zMax) return;
-
+    unsigned long index = get_global_id(0);
+    if (index >= numElements) return;
+    
     image[index] = (image[index] - minI) / (maxI - minI);
     if (image[index] > 255.0)
         image[index] = 255.0;
@@ -50,31 +42,33 @@ kernel void Contrast(global float* image, const unsigned long xMax, const unsign
         image[index] = 0.0;
 }
 
-kernel void Smoothen(global float* image, const unsigned long xMax, const unsigned long yMax, const unsigned long zMax)
+kernel void Smoothen(global const float* in, global float* out, const unsigned long numElements, const unsigned long width)
 {
-    unsigned long index = (get_global_id(0) + get_global_id(1) * xMax) * zMax + get_global_id(2);
-    if (get_global_id(0) >= xMax) return;
-    if (get_global_id(1) >= yMax) return;
-    if (get_global_id(2) >= zMax) return;
+    unsigned long index = get_global_id(0);
+    if (index >= numElements) return;
 
+    unsigned long cellWidth = 3;
+    unsigned long rowWidth = width * cellWidth;
+    
     unsigned int count = 1;
-    float value = image[index];
-    if (get_global_id(0) != 0) {
-        value += image[index - zMax];
+    float value = in[index];
+    
+    if ((index - cellWidth >= 0) && (index - cellWidth < numElements)) {
         count++;
+        value += in[index - cellWidth];
     }
-    if (get_global_id(0) != xMax - 1) {
-        value += image[index + zMax];
+    if ((index + cellWidth >= 0) && (index + cellWidth < numElements)) {
         count++;
+        value += in[index + cellWidth];
     }
-    if (get_global_id(1) != 0) {
-        value += image[index - (zMax * xMax)];
+    if ((index - rowWidth >= 0) && (index - rowWidth < numElements)) {
         count++;
+        value += in[index - rowWidth];
     }
-    if (get_global_id(1) != yMax - 1) {
-        value += image[index + (zMax * xMax)];
+    if ((index + rowWidth >= 0) && (index + rowWidth < numElements)) {
         count++;
+        value += in[index + rowWidth];
     }
 
-    image[index] = value / (float) count;
+    out[index] = value / as_float(count);
 }

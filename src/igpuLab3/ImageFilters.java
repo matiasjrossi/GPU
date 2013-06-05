@@ -30,6 +30,7 @@ public class ImageFilters {
     private CLCommandQueue _commandQueue;
     private CLProgram _program;
     private BufferedImage _image;
+    private int _numElements;
     private static int windowNo = 0;
 
     
@@ -41,8 +42,8 @@ public class ImageFilters {
         
         System.out.println("Using device: " + _device);
         System.out.println("CL_DEVICE_MAX_WORK_GROUP_SIZE=" + _device.getMaxWorkGroupSize());
-        System.out.println("CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS=" + _device.getMaxWorkItemDimensions());
-        System.out.println("CL_DEVICE_MAX_WORK_ITEM_SIZES=" + Arrays.toString(_device.getMaxWorkItemSizes()));
+//        System.out.println("CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS=" + _device.getMaxWorkItemDimensions());
+//        System.out.println("CL_DEVICE_MAX_WORK_ITEM_SIZES=" + Arrays.toString(_device.getMaxWorkItemSizes()));
         
         _commandQueue = _device.createCommandQueue();
         
@@ -50,6 +51,8 @@ public class ImageFilters {
         _program.build(CLProgram.CompilerOptions.FAST_RELAXED_MATH);
         
         _image = ImageIO.read(getClass().getResourceAsStream(IMAGE_FILENAME));
+        
+        _numElements = _image.getWidth() * _image.getHeight() * 3;
 
         showImage(_image, 0, V_OFFSET * ++windowNo, "Original", JFrame.EXIT_ON_CLOSE);
     }
@@ -60,36 +63,41 @@ public class ImageFilters {
                 _image.getRaster().getPixels(0, 0, _image.getWidth(), _image.getHeight(), (float[])null)
             ),
             CLBuffer.Mem.READ_WRITE);
+
         CLKernel kernel = _program.createCLKernel(filter);
 
-        kernel.setArg(0, buffer);
-        kernel.setArg(1, _image.getWidth());
-        kernel.setArg(2, _image.getHeight());
-        kernel.setArg(3, 3);
+        int argCount = 0;
+        if (filter.equals("Smoothen")) {
+            CLBuffer<FloatBuffer> buffer_in = _context.createBuffer(
+                Buffers.newDirectFloatBuffer(
+                    _image.getRaster().getPixels(0, 0, _image.getWidth(), _image.getHeight(), (float[])null)
+                ),
+                CLBuffer.Mem.READ_ONLY);
+            kernel.setArg(argCount++, buffer_in);
+        }
+        kernel.setArg(argCount++, buffer);
+        kernel.setArg(argCount++, _numElements);
 
-        int nextArg = 4;
         for (float p: parameters)
-            kernel.setArg(nextArg++, p);
+            kernel.setArg(argCount++, p);
         
-        int[] localWorkSize = {(int) kernel.getWorkGroupSize(_device), 1, 1};
-        int[] globalWorkSize = {
-            roundUp(localWorkSize[0], _image.getWidth()),
-            roundUp(localWorkSize[1], _image.getHeight()),
-            roundUp(localWorkSize[2], 3)
-        };
+        if (filter.equals("Smoothen"))
+            kernel.setArg(argCount++, _image.getWidth());
+        
+        if (argCount != kernel.numArgs) {
+            throw new IllegalArgumentException(
+                    "Incompatible number of arguments for filter '" + filter +
+                    "'. Expected " + kernel.numArgs +
+                    " got " + argCount + ".");
+        }
 
-        System.out.println(
-                "Enqueuing kernel '" + filter +
-                "' with GWS=" + Arrays.toString(globalWorkSize) +
-                " and LWS=" + Arrays.toString(localWorkSize)
-                );
-        
+
         _commandQueue.putWriteBuffer(buffer, false);
-        _commandQueue.put3DRangeKernel(
+        _commandQueue.put1DRangeKernel(
                 kernel,
-                0, 0, 0,
-                globalWorkSize[0], globalWorkSize[1], globalWorkSize[2],
-                localWorkSize[0], localWorkSize[1], localWorkSize[2]
+                0,
+                roundUp(kernel.getWorkGroupSize(_device), _numElements),
+                kernel.getWorkGroupSize(_device)
                 );
         _commandQueue.putReadBuffer(buffer, true);
         
@@ -127,6 +135,10 @@ public class ImageFilters {
                 frame.setVisible(true);
             }
         });
+    }
+    
+    private int roundUp(long groupSize, int globalSize) {
+        return roundUp((int) groupSize, globalSize);
     }
     
     private int roundUp(int groupSize, int globalSize) {
