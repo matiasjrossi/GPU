@@ -42,7 +42,7 @@ kernel void Contrast(global float* image, const unsigned long numElements, const
         image[index] = 0.0;
 }
 
-kernel void Smoothen(global const float* in, global float* out, const unsigned long numElements, const unsigned long width)
+kernel void Smoothen(global float* image, const unsigned long numElements, const unsigned long width)
 {
     unsigned long index = get_global_id(0);
     if (index >= numElements) return;
@@ -51,24 +51,24 @@ kernel void Smoothen(global const float* in, global float* out, const unsigned l
     unsigned long rowWidth = width * cellWidth;
     
     unsigned int count = 1;
-    float value = in[index];
+    float value = image[index];
     
     if ((index - cellWidth >= 0) && (index - cellWidth < numElements)) {
         count++;
-        value += in[index - cellWidth];
+        value += image[index - cellWidth];
     }
     if ((index + cellWidth >= 0) && (index + cellWidth < numElements)) {
         count++;
-        value += in[index + cellWidth];
+        value += image[index + cellWidth];
     }
     if ((index - rowWidth >= 0) && (index - rowWidth < numElements)) {
         count++;
-        value += in[index - rowWidth];
+        value += image[index - rowWidth];
     }
     if ((index + rowWidth >= 0) && (index + rowWidth < numElements)) {
         count++;
-        value += in[index + rowWidth];
+        value += image[index + rowWidth];
     }
 
-    out[index] = value / as_float(count);
+    image[index] = value / as_float(count);
 }

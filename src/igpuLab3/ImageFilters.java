@@ -63,35 +63,33 @@ public class ImageFilters {
                 _image.getRaster().getPixels(0, 0, _image.getWidth(), _image.getHeight(), (float[])null)
             ),
             CLBuffer.Mem.READ_WRITE);
-
         CLKernel kernel = _program.createCLKernel(filter);
 
         int argCount = 0;
-        if (filter.equals("Smoothen")) {
-            CLBuffer<FloatBuffer> buffer_in = _context.createBuffer(
-                Buffers.newDirectFloatBuffer(
-                    _image.getRaster().getPixels(0, 0, _image.getWidth(), _image.getHeight(), (float[])null)
-                ),
-                CLBuffer.Mem.READ_ONLY);
-            kernel.setArg(argCount++, buffer_in);
-        }
         kernel.setArg(argCount++, buffer);
         kernel.setArg(argCount++, _numElements);
 
         for (float p: parameters)
             kernel.setArg(argCount++, p);
         
-        if (filter.equals("Smoothen"))
-            kernel.setArg(argCount++, _image.getWidth());
-        
         if (argCount != kernel.numArgs) {
-            throw new IllegalArgumentException(
-                    "Incompatible number of arguments for filter '" + filter +
-                    "'. Expected " + kernel.numArgs +
-                    " got " + argCount + ".");
+            if (kernel.numArgs - argCount == 1) {
+                // Assume it requires the image size as an extra argument
+                kernel.setArg(argCount++, _image.getWidth());
+            } else {
+                throw new IllegalArgumentException(
+                        "Incompatible number of arguments for filter '" + filter +
+                        "'. Expected " + kernel.numArgs +
+                        " got " + argCount + ".");
+            }
         }
 
-
+//        System.out.println(
+//                "Enqueuing kernel '" + filter +
+//                "' with GWS=" + Arrays.toString(globalWorkSize) +
+//                " and LWS=" + Arrays.toString(localWorkSize)
+//                );
+        
         _commandQueue.putWriteBuffer(buffer, false);
         _commandQueue.put1DRangeKernel(
                 kernel,
