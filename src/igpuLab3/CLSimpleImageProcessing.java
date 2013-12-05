@@ -28,7 +28,7 @@ public class CLSimpleImageProcessing {
             imFilters.showFiltered("Contrast", -50.0f, -45.0f);
             imFilters.showFiltered("Contrast", 0.0f, 0.5f);
             
-            imFilters.showFiltered("Smoothen");
+//            imFilters.showFiltered("Smoothen");
                    
         } finally {
             context.release();
